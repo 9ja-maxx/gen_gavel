@@ -116,6 +116,7 @@ export default function Home() {
   }
 
   async function handleTransaction(functionName: string, args: any[], value?: bigint) {
+    // Interacts with the GenLayer client to send write operations to GenVM
     if (!wallet.client || !wallet.address) {
       setConsoleMsg("Please connect your wallet to submit transactions.");
       return;
