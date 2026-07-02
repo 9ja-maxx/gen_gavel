@@ -29,6 +29,19 @@ Instead of relying on non-deterministic system clock calls (which cause validati
 ### 6. Fault-Tolerant & Defensive JSON Extractors
 GenGavel uses a defensive extractor helper (`_extract_json`) that parses LLM responses safely, scrubbing markdown wrapper elements (e.g. ` ```json ` blocks), and handles parsing failures gracefully to avoid transaction failures.
 
+## 🗺️ Resolution Lifecycle
+```mermaid
+graph TD
+    A[Claimant lodges dispute & stakes fee] --> B{Defendant responds in time?}
+    B -- No / Timeout --> C[Claimant petitions default resolution & refunds stake]
+    B -- Yes / Staked --> D[Active Pleading Adjudication]
+    D --> E[Initial Arbitration: resolve_dispute]
+    E --> F{Appeal Window Open}
+    F -- Expires without appeal --> G[finalize_disposal: Escrow pool paid to winner]
+    F -- Loser files appeal & stakes bond --> H[Supreme Appellate Tribunal]
+    H --> I[resolve_appeal: Final pool paid to prevailing party]
+```
+
 ---
 
 ## 🛠️ Smart Contract API
