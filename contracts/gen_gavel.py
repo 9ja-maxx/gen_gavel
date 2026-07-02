@@ -206,6 +206,41 @@ Return JSON object:
         dispute["appeal_deadline"] = appeal_deadline
         self.disputes[dispute_id] = json.dumps(dispute)
 
+    @gl.public.write.payable
+    def escalate_appeal(self, dispute_id: str) -> None:
+        """
+        Allows the losing party to appeal the initial AI verdict by staking a matching appeal bond.
+        """
+        dispute = json.loads(self.disputes[dispute_id])
+        if dispute.get("stage") != 2:
+            raise gl.vm.UserError("This dispute is not in the appeal window.")
+
+        now_sec = self._parse_timestamp(gl.message_raw["datetime"])
+        if now_sec > int(dispute.get("appeal_deadline", 0)):
+            raise gl.vm.UserError("The appeal filing window has expired.")
+
+        ruling = json.loads(dispute.get("initial_ruling", "{}"))
+        verdict = str(ruling.get("verdict", "")).strip().lower()
+
+        # Losing party calculation
+        if verdict == "claimant":
+            losing_party = dispute.get("defendant", "")
+        else:
+            losing_party = dispute.get("claimant", "")
+
+        if str(gl.message.sender_address).lower() != losing_party.lower():
+            raise gl.vm.UserError("Only the losing party is permitted to file an appeal.")
+
+        stake = gl.message.value
+        required_bond = u256(int(dispute.get("claimant_stake", 0)))
+        if stake != required_bond:
+            raise gl.vm.UserError(f"Escalation requires staking an appeal bond of {dispute.get('claimant_stake')} wei.")
+
+        dispute["stage"] = 3  # 3 = Escalated / Appealed
+        dispute["appealed_by"] = str(gl.message.sender_address)
+        dispute["escrow_pool"] = str(u256(int(dispute.get("escrow_pool", 0))) + stake)
+        self.disputes[dispute_id] = json.dumps(dispute)
+
     def _pay(self, recipient: str, amount: u256) -> None:
         """
         Transfers native tokens (GEN) to a recipient address.
