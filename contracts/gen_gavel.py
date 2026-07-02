@@ -83,8 +83,43 @@ class GenGavel(gl.Contract):
         dispute["rebuttal_evidence"] = evidence
         dispute["defendant_stake"] = str(stake)
         dispute["escrow_pool"] = str(u256(int(dispute.get("escrow_pool", 0))) + stake)
-        dispute["stage"] = 1  # 1 = Answered/Active Adjudication
+        dispute["stage"] = 1  # 1 = Answered / Active Adjudication
         self.disputes[dispute_id] = json.dumps(dispute)
+
+    @gl.public.write
+    def claim_default_judgment(self, dispute_id: str) -> None:
+        """
+        Allows the claimant to claim a default judgment and retrieve their escrow
+        if the defendant fails to respond within the allotted window.
+        """
+        dispute = json.loads(self.disputes[dispute_id])
+        if dispute.get("stage") != 0:
+            raise gl.vm.UserError("This dispute is not eligible for default judgment.")
+        if str(gl.message.sender_address).lower() != dispute.get("claimant", "").lower():
+            raise gl.vm.UserError("Only the claimant can request default judgment.")
+
+        now_sec = self._parse_timestamp(gl.message_raw["datetime"])
+        if now_sec <= int(dispute.get("deadline", 0)):
+            raise gl.vm.UserError("The rebuttal period is still active.")
+
+        dispute["stage"] = 4  # 4 = Defaulted
+        dispute["escrow_pool"] = "0"
+        self.disputes[dispute_id] = json.dumps(dispute)
+
+        claimant_stake = u256(int(dispute.get("claimant_stake", 0)))
+        self._pay(dispute.get("claimant"), claimant_stake)
+
+    def _pay(self, recipient: str, amount: u256) -> None:
+        """
+        Transfers native tokens (GEN) to a recipient address.
+        """
+        @gl.evm.contract_interface
+        class _Recipient:
+            class View:
+                pass
+            class Write:
+                pass
+        _Recipient(Address(recipient)).emit_transfer(value=amount)
 
     def _parse_timestamp(self, iso_str: str) -> int:
         """
