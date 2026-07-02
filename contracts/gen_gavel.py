@@ -59,6 +59,33 @@ class GenGavel(gl.Contract):
         self.disputes[dispute_id] = json.dumps(dispute_data)
         return self.dispute_count
 
+    @gl.public.write.payable
+    def submit_rebuttal(self, dispute_id: str, rebuttal: str, evidence: str) -> None:
+        """
+        Allows the designated defendant to stake a matching deposit and file their defense.
+        """
+        dispute = json.loads(self.disputes[dispute_id])
+        if dispute.get("stage") != 0:
+            raise gl.vm.UserError("This dispute is not awaiting a rebuttal.")
+        if str(gl.message.sender_address).lower() != dispute.get("defendant", "").lower():
+            raise gl.vm.UserError("Only the designated defendant can respond.")
+
+        now_sec = self._parse_timestamp(gl.message_raw["datetime"])
+        if now_sec > int(dispute.get("deadline", 0)):
+            raise gl.vm.UserError("Rebuttal submission deadline has expired.")
+
+        stake = gl.message.value
+        required_stake = u256(int(dispute.get("claimant_stake", 0)))
+        if stake != required_stake:
+            raise gl.vm.UserError(f"Rebuttal requires staking a matching deposit of {dispute.get('claimant_stake')} wei.")
+
+        dispute["rebuttal"] = rebuttal
+        dispute["rebuttal_evidence"] = evidence
+        dispute["defendant_stake"] = str(stake)
+        dispute["escrow_pool"] = str(u256(int(dispute.get("escrow_pool", 0))) + stake)
+        dispute["stage"] = 1  # 1 = Answered/Active Adjudication
+        self.disputes[dispute_id] = json.dumps(dispute)
+
     def _parse_timestamp(self, iso_str: str) -> int:
         """
         Helper method to parse transaction ISO timestamps deterministically.
