@@ -499,7 +499,7 @@ export default function Home() {
                       </div>
                     )}
 
-                    {/* Finalize ruling */}
+                    {/* Finalize ruling - disburse funds to claimant or defendant after window expiration */}
                     {selected.stage === 2 && (
                       <div style={actionFormCardStyle}>
                         <h5 style={formCardTitleStyle}>Disburse Settled Funds</h5>
