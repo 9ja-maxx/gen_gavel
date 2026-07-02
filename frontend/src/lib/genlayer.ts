@@ -4,7 +4,7 @@ import type { GenLayerClient } from "genlayer-js/types";
 
 // GenGavel contract address - to be updated after deployment
 export const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ||
-  "0x0000000000000000000000000000000000000000") as `0x${string}`;
+  "0xA944Dc51a79BF3137645b57a653247af827D1F41") as `0x${string}`;
 
 declare global {
   interface Window { ethereum?: any; }
