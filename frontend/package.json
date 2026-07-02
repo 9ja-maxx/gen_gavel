@@ -9,15 +9,15 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "genlayer-js": "^0.1.0-alpha.5",
-    "next": "^14.1.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "genlayer-js": "^1.1.8",
+    "next": "14.2.21",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@types/node": "^20.11.16",
-    "@types/react": "^18.2.52",
-    "@types/react-dom": "^18.2.18",
-    "typescript": "^5.3.3"
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.4.5"
   }
 }
