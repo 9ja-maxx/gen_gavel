@@ -5,6 +5,33 @@ import json
 import typing
 from datetime import datetime
 
+def _extract_json(response: str) -> dict:
+    """
+    Defensively extracts JSON from LLM responses, stripping out markdown formatting.
+    """
+    s = response.strip()
+    for marker in ["```json", "```"]:
+        if marker in s:
+            parts = s.split(marker)
+            if len(parts) > 1:
+                inner = parts[1].split("```")[0].strip()
+                try:
+                    return json.loads(inner)
+                except Exception:
+                    pass
+    start = s.find('{')
+    end = s.rfind('}')
+    if start != -1 and end != -1 and end > start:
+        candidate = s[start:end+1]
+        try:
+            return json.loads(candidate)
+        except Exception:
+            pass
+    try:
+        return json.loads(s)
+    except Exception:
+        return {}
+
 class GenGavel(gl.Contract):
     """
     GenGavel is a decentralized SLA escrow and intelligent arbitration contract.
@@ -108,6 +135,76 @@ class GenGavel(gl.Contract):
 
         claimant_stake = u256(int(dispute.get("claimant_stake", 0)))
         self._pay(dispute.get("claimant"), claimant_stake)
+
+    @gl.public.write
+    def resolve_dispute(self, dispute_id: str) -> None:
+        """
+        Triggers the initial decentralized AI arbitration using validator consensus.
+        """
+        dispute = json.loads(self.disputes[dispute_id])
+        if dispute.get("stage") != 1:
+            raise gl.vm.UserError("Dispute is not ready for initial adjudication.")
+
+        charter = self.charter
+
+        def leader_fn():
+            prompt = f"""You are an objective Decentralized Court Arbiter.
+DAO Agreement Guidelines / Charter:
+{charter}
+
+DISPUTE CASE SPECIFICATION:
+Title: {dispute.get('title')}
+
+CLAIMANT ({dispute.get('claimant')}):
+Complaint: {dispute.get('complaint')}
+Evidence: {dispute.get('evidence')}
+
+DEFENDANT ({dispute.get('defendant')}):
+Rebuttal: {dispute.get('rebuttal')}
+Evidence: {dispute.get('rebuttal_evidence')}
+
+Evaluate:
+1. Did the defendant breach the DAO rules/charter guidelines?
+2. Is the claimant's request for resolution justified?
+3. What is the correct verdict?
+
+Return JSON object:
+{{
+    "verdict": "claimant" or "defendant",
+    "violation_found": true or false,
+    "reasoning": "A concise summary of findings referencing the charter rules."
+}}"""
+            response = gl.nondet.exec_prompt(prompt)
+            return _extract_json(response)
+
+        def validator_fn(leader_result) -> bool:
+            if not isinstance(leader_result, gl.vm.Return):
+                return False
+            validator_data = leader_fn()
+            leader_data = leader_result.calldata
+            
+            if not isinstance(leader_data, dict) or not isinstance(validator_data, dict):
+                return False
+            
+            leader_verdict = str(leader_data.get("verdict", "")).strip().lower()
+            validator_verdict = str(validator_data.get("verdict", "")).strip().lower()
+            leader_violation = bool(leader_data.get("violation_found", False))
+            validator_violation = bool(validator_data.get("violation_found", False))
+            
+            if leader_verdict not in ["claimant", "defendant"] or validator_verdict not in ["claimant", "defendant"]:
+                return False
+
+            return (leader_verdict == validator_verdict and leader_violation == validator_violation)
+
+        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+
+        now_sec = self._parse_timestamp(gl.message_raw["datetime"])
+        appeal_deadline = now_sec + 86400
+
+        dispute["stage"] = 2  # 2 = Adjudicated (Appeal window open)
+        dispute["initial_ruling"] = json.dumps(result)
+        dispute["appeal_deadline"] = appeal_deadline
+        self.disputes[dispute_id] = json.dumps(dispute)
 
     def _pay(self, recipient: str, amount: u256) -> None:
         """
