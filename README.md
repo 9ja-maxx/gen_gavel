@@ -1,84 +1,136 @@
-# ⚖️ GenGavel
+# 🏛️ GenGavel: Decentralized Agreement Arbitration & Escrow Protocol
 
-**An Intelligent Decentralized Arbitration & Escrow Protocol powered by GenLayer.**
+GenGavel is a trustless, decentralized court system and SLA (Service Level Agreement) enforcement protocol. Built on GenLayer, GenGavel enables contract execution, escrow protection, and qualitative dispute resolution through decentralized AI validator consensus. It allows counterparties to enter agreements with subjective milestones (such as custom software development, creative design, or service standards) and guarantees fair, decentralized, and economic adjudication if conflicts arise.
 
-GenGavel is a game-theoretically balanced SLA (Service Level Agreement) dispute resolution protocol. It leverages decentralized AI consensus on GenLayer to evaluate and arbitrate qualitative claims (such as contract fulfillment, software delivery, service standards, and other natural-language terms) without relying on centralized human judges or single-point-of-failure LLM integrations.
+---
 
-## 🚀 Key Standout Features
+## 📖 Table of Contents
+1. [Core Mission & Use Cases](#-core-mission--use-cases)
+2. [Protocol Architecture & Economic Safeguards](#-protocol-architecture--economic-safeguards)
+3. [The Dispute Resolution Lifecycle](#-the-dispute-resolution-lifecycle)
+4. [Smart Contract Technical Specifications](#-smart-contract-technical-specifications)
+5. [consensus & The Equivalence Principle](#-consensus--the-equivalence-principle)
+6. [Sandboxed Setup & Local Sandbox](#-sandboxed-setup--local-sandbox)
 
-### 1. Game-Theoretic Incentive Design
-To prevent spam, frivolous disputes, or low-effort claims:
-* **Filing Escrow:** The plaintiff (claimant) locks a filing fee/escrow stake.
-* **Matching Rebuttal Stake:** To defend themselves, the defendant must match the plaintiff's stake. 
-* **Winner-Take-All:** The winning party (determined by validator consensus) claims the combined pool.
+---
 
-### 2. Griefing Prevention via Default Judgment
-If the defendant fails to respond or stake within the customizable resolution window, the dispute can be unilaterally closed by the plaintiff via `claim_default_resolution()`, returning the plaintiff's original stake and preventing locked-fund hostage situations.
+## 🎯 Core Mission & Use Cases
 
-### 3. Escape-Proof Escrow & Appeal Window
-Adjudication does not immediately disburse funds. GenGavel introduces a **24-hour Appeal Window** after the initial ruling:
-* If no appeal is filed, the winning party can finalize the case and claim the escrow.
-* The losing party can challenge the decision by posting a matching appeal bond, escalating the dispute to a **Supreme Appeal**.
+Traditional blockchains cannot enforce agreements containing subjective or qualitative clauses. If a developer delivers a code milestone that "functions poorly" or a designer creates an asset that "breaches style guidelines," smart contracts cannot arbitrate the claim because subjective criteria cannot be expressed in binary code.
 
-### 4. Appellate Review (Supreme Appeal)
-When appealed, a secondary appellate AI prompt is executed (`resolve_appeal`). This prompt instructs GenLayer validators to act as a Supreme Court, auditing the initial judge's decision, reviewing the original claims/rebuttal, and rendering an absolute, unappealable final ruling.
+GenGavel bridges this gap. By utilizing GenLayer’s LLM-driven validators, the protocol reaches consensus on natural-language briefs, complaints, and evidence. 
 
-### 5. Deterministic Time Mechanics
-Instead of relying on non-deterministic system clock calls (which cause validation forks), GenGavel parses the transaction's ISO 8601 string (`gl.message_raw["datetime"]`) into a UTC Unix timestamp using a deterministic timezone offset conversion, ensuring consensus validity across all validating nodes.
+### Ideal Scenarios:
+* **Freelance Milestones:** Ensuring deliverables match qualitative client briefs.
+* **SLA Enforcement:** Verifying server uptime and qualitative service standards.
+* **E-Commerce Escrows:** Confirming that goods delivered match their description.
 
-### 6. Fault-Tolerant & Defensive JSON Extractors
-GenGavel uses a defensive extractor helper (`_extract_json`) that parses LLM responses safely, scrubbing markdown wrapper elements (e.g. ` ```json ` blocks), and handles parsing failures gracefully to avoid transaction failures.
+---
 
-## 🗺️ Resolution Lifecycle
+## 🛡️ Protocol Architecture & Economic Safeguards
+
+Arbitration protocols are vulnerable to systemic manipulation, griefing, and host clock exploits. GenGavel addresses these game-theoretic risks with a series of design safeguards:
+
+### 1. Spam Prevention (Stake-Matching)
+To file a case, the claimant must lock a specified stake (escrow deposit). To defend themselves, the respondent must match that stake. The prevailing party claims the entire merged escrow pool. This ensures both parties have equal financial stakes and prevents frivolous complaints.
+
+### 2. Lockup Prevention (Default Judgments)
+If a respondent refuses to file a defense, the claimant's funds could remain trapped. GenGavel introduces a customizable response timeout. If the respondent fails to submit their rebuttal before the deadline, the claimant can execute a default judgment to reclaim their initial stake.
+
+### 3. Escrow Security (Appeals Window)
+Initial rulings do not immediately transfer funds to the winning address, preventing immediate "wallet clawback" issues. Instead, rulings are placed in a 24-hour pending escrow. The losing party may challenge the decision by staking a matching appeal bond to escalate the case.
+
+---
+
+## 🔄 The Dispute Resolution Lifecycle
+
+The diagram below details the operational stages of a dispute within the GenGavel protocol, showcasing the paths from initial filing to final resolution:
+
 ```mermaid
-graph TD
-    A[Claimant lodges dispute & stakes fee] --> B{Defendant responds in time?}
-    B -- No / Timeout --> C[Claimant petitions default resolution & refunds stake]
-    B -- Yes / Staked --> D[Active Pleading Adjudication]
-    D --> E[Initial Arbitration: resolve_dispute]
-    E --> F{Appeal Window Open}
-    F -- Expires without appeal --> G[finalize_disposal: Escrow pool paid to winner]
-    F -- Loser files appeal & stakes bond --> H[Supreme Appellate Tribunal]
-    H --> I[resolve_appeal: Final pool paid to prevailing party]
+stateDiagram-v2
+    [*] --> Filed : claimant stakes deposit & files claim
+    Filed --> Defaulted : timeout reached without response
+    Defaulted --> [*] : claimant claims refund & dissolves escrow
+    Filed --> Answered : respondent stakes matching deposit & submits defense
+    Answered --> Adjudicated : initial arbitration consensus triggered
+    Adjudicated --> Settled : 24-hour appeal window expires
+    Settled --> [*] : winning party finalizes payout
+    Adjudicated --> Escalated : losing party stakes appeal bond
+    Escalated --> Settled : supreme appellate tribunal renders final verdict
 ```
 
 ---
 
-## 🛠️ Smart Contract API
+## 📑 Smart Contract Technical Specifications
 
-| Method | Type | Description |
-|--------|------|-------------|
-| `lodge_dispute(title, complaint, evidence, defendant, duration_hours)` | Write (Payable) | Claimant files a dispute, locks their escrow stake, and sets a deadline. |
-| `submit_rebuttal(dispute_id, defense, evidence)` | Write (Payable) | Defendant uploads their defense and deposits a matching stake. |
-| `claim_default_resolution(dispute_id)` | Write | Returns the plaintiff's stake if the defendant misses the response window. |
-| `resolve_dispute(dispute_id)` | Write (AI) | Triggers the initial AI validator consensus judgment. |
-| `escalate_appeal(dispute_id)` | Write (Payable) | Allows the losing party to appeal by posting an appeal bond. |
-| `resolve_appeal(dispute_id)` | Write (AI) | Resolves the Supreme Appeal and distributes the pool. |
-| `finalize_disposal(dispute_id)` | Write | Distributes the locked escrow pool after the appeal window expires. |
-| `get_dispute(dispute_id)` | View | Returns serialized JSON details of the case. |
-| `is_expired(dispute_id)` | View | Returns whether a dispute has exceeded its deadline. |
+### Core State Properties:
+* `dispute_count (i32)`: Auto-incrementing identifier for disputes.
+* `charter (str)`: The natural-language rules and regulations of the DAO/Court.
+* `disputes (TreeMap)`: Map of serialized dispute data records.
+
+### Contract API Interface:
+
+```python
+# Lodge a new claim and lock the initial escrow stake
+lodge_dispute(title: str, complaint: str, evidence: str, defendant: str, duration_hours: int) -> i32
+
+# File a defense narrative and lock a matching escrow stake
+submit_rebuttal(dispute_id: str, rebuttal: str, evidence: str) -> None
+
+# Unilaterally retrieve stakes if the defendant misses the timeout window
+claim_default_judgment(dispute_id: str) -> None
+
+# Trigger initial AI validator consensus adjudication
+resolve_dispute(dispute_id: str) -> None
+
+# Escalate the initial ruling by filing a supreme appeal bond
+escalate_appeal(dispute_id: str) -> None
+
+# Execute Supreme Appellate arbitration consensus
+resolve_appeal(dispute_id: str) -> None
+
+# Finalize the docket and disburse funds to the prevailing party
+finalize_disposal(dispute_id: str) -> None
+```
 
 ---
 
-## 💻 Tech Stack & Local Setup
+## 🧠 Consensus & The Equivalence Principle
 
-### Prerequisites
-* Node.js (v18+)
-* `genlayer` CLI toolkit
+GenGavel utilizes the **Equivalence Principle (EP)** inside non-deterministic code blocks to reach agreement. 
 
-### Local Installation
+During `resolve_dispute` and `resolve_appeal`, the leader validator executes an LLM prompt containing the dispute specs, complaints, defense, and evidence. The leader returns a JSON object containing the verdict and violation status. 
 
-1. **Deploy Contract:**
+Validators verify this by executing the same prompt on their own local LLMs. In `validator_fn`, the validator compares the leader's verdict with their own result. If they agree on the semantic verdict (e.g. claimant vs. defendant) and the violation status, consensus is reached. This design ignores non-deterministic variations in free-text reasoning, preventing forks while preserving the integrity of the judgment.
+
+---
+
+## 💻 Sandboxed Setup & Local Sandbox
+
+### 1. Smart Contract Deployment
+To compile and deploy the Intelligent Contract locally using the GenLayer CLI tool:
 ```bash
+# Set network to Studio testnet
 genlayer network set studionet
+
+# Unlock your dev account
 genlayer account unlock
+
+# Deploy contract with court guidelines as constructor arguments
 genlayer deploy --contract contracts/gen_gavel.py --args "1. Deliverables must match specifications. 2. Work must be professional. 3. Disputes must be filed in good faith."
 ```
 
-2. **Frontend Deployment:**
+### 2. Frontend Launch
+Ensure you have Node.js and TypeScript packages installed:
 ```bash
+# Navigate to the frontend workspace
 cd frontend
+
+# Install package dependencies
 npm install
+
+# Run the classy developer console
 npm run dev
 ```
-Open `http://localhost:3000` to interact with the Classy GenGavel Dashboard.
+
+Open `http://localhost:3000` to interact with the GenGavel Magistrate Console.
