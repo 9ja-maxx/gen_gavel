@@ -325,6 +325,62 @@ Return JSON object:
         else:
             self._pay(dispute.get("defendant"), escrow_pool_wei)
 
+    @gl.public.write
+    def finalize_disposal(self, dispute_id: str) -> None:
+        """
+        Distributes the locked escrow funds after the appeal window expires without an appeal.
+        """
+        dispute = json.loads(self.disputes[dispute_id])
+        if dispute.get("stage") != 2:
+            raise gl.vm.UserError("This dispute is not in the pending finalization state.")
+
+        now_sec = self._parse_timestamp(gl.message_raw["datetime"])
+        if now_sec <= int(dispute.get("appeal_deadline", 0)):
+            raise gl.vm.UserError("The appeal challenge window is still active.")
+
+        ruling = json.loads(dispute.get("initial_ruling", "{}"))
+        verdict = str(ruling.get("verdict", "")).strip().lower()
+
+        escrow_pool_wei = u256(int(dispute.get("escrow_pool", 0)))
+        dispute["escrow_pool"] = "0"
+        dispute["stage"] = 5  # 5 = Finalized / Settled
+        self.disputes[dispute_id] = json.dumps(dispute)
+
+        if verdict == "claimant":
+            self._pay(dispute.get("claimant"), escrow_pool_wei)
+        else:
+            self._pay(dispute.get("defendant"), escrow_pool_wei)
+
+    @gl.public.view
+    def get_dispute(self, dispute_id: str) -> str:
+        """
+        Returns serialized JSON details of a specific dispute docket.
+        """
+        return self.disputes[dispute_id]
+
+    @gl.public.view
+    def is_expired(self, dispute_id: str) -> bool:
+        """
+        Returns true if the rebuttal deadline has passed.
+        """
+        dispute = json.loads(self.disputes[dispute_id])
+        now_sec = self._parse_timestamp(gl.message_raw["datetime"])
+        return now_sec > int(dispute.get("deadline", 0))
+
+    @gl.public.view
+    def get_charter(self) -> str:
+        """
+        Returns the contract ruleguidelines charter.
+        """
+        return self.charter
+
+    @gl.public.view
+    def get_dispute_count(self) -> i32:
+        """
+        Returns the total number of disputes logged.
+        """
+        return self.dispute_count
+
     def _pay(self, recipient: str, amount: u256) -> None:
         """
         Transfers native tokens (GEN) to a recipient address.
