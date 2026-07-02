@@ -27,11 +27,11 @@ type Dispute = {
 
 const STAGE_LABELS = [
   "Dispute Lodged",
-  "Rebuttal Submitted",
-  "Consensus Adjudicated",
-  "Supreme Appeal Filed",
+  "Rebuttal Staked",
+  "Initial Adjudication",
+  "Appealed to Supreme",
   "Default Forfeited",
-  "Escrow Finalized"
+  "Docket Settled"
 ];
 
 const STAGE_COLORS = [
@@ -60,7 +60,6 @@ export default function Home() {
     try {
       const client = readClient();
       
-      // Fetch Charter
       try {
         const charterData = await client.readContract({
           address: CONTRACT_ADDRESS,
@@ -72,7 +71,6 @@ export default function Home() {
         console.warn("Failed to read charter:", err);
       }
 
-      // Fetch disputes count and iterate
       const countRaw = await client.readContract({
         address: CONTRACT_ADDRESS,
         functionName: "get_dispute_count",
@@ -116,7 +114,6 @@ export default function Home() {
   }
 
   async function handleTransaction(functionName: string, args: any[], value?: bigint) {
-    // Interacts with the GenLayer client to send write operations to GenVM
     if (!wallet.client || !wallet.address) {
       setConsoleMsg("Please connect your wallet to submit transactions.");
       return;
@@ -135,7 +132,6 @@ export default function Home() {
       setConsoleMsg("Transaction executed and accepted into state!");
       setTimeout(() => setConsoleMsg(""), 4000);
       
-      // Reset forms and reload
       setSelected(null);
       setShowLodgeModal(false);
       setRebuttalForm({ narrative: "", evidence: "" });
@@ -151,14 +147,13 @@ export default function Home() {
   };
 
   const getStageBadge = (stageNum: number) => {
-    const label = STAGE_LABELS[stageNum] || "Unknown Stage";
+    const label = STAGE_LABELS[stageNum] || "Unknown";
     const color = STAGE_COLORS[stageNum] || "#64748b";
     return { label, color };
   };
 
   return (
     <div style={containerStyle}>
-      {/* Import Serif Typography for Classic Legal Feel and Jakarta for body */}
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
       {/* Styled Luxury Header */}
@@ -167,9 +162,16 @@ export default function Home() {
           <span style={logoScaleStyle}>⚖️</span>
           <div>
             <h1 style={logoTitleStyle}>GenGavel</h1>
-            <p style={logoSubtitleStyle}>Decentralized SLA Escrow & AI Arbitration Courtroom</p>
+            <p style={logoSubtitleStyle}>The Decentralized SLA Courtroom</p>
           </div>
         </div>
+
+        {consoleMsg && (
+          <div style={consoleBadgeStyle}>
+            <span style={blinkIndicatorStyle}></span>
+            <span>{consoleMsg}</span>
+          </div>
+        )}
 
         <div style={headerActionsStyle}>
           {wallet.address ? (
@@ -179,375 +181,335 @@ export default function Home() {
                 <span style={addressTextStyle}>{truncateAddress(wallet.address)}</span>
               </div>
               <button onClick={() => setWallet({ address: null, client: null })} style={btnDisconnectStyle}>
-                Disconnect
+                Exit Bench
               </button>
             </div>
           ) : (
             <button onClick={handleWalletConnect} style={btnConnectStyle}>
-              Connect Magistrate Wallet
+              Convene Magistrate
             </button>
           )}
         </div>
       </header>
 
-      {/* Status Log Box */}
-      {consoleMsg && (
-        <div style={consoleBannerStyle}>
-          <span style={{ marginRight: 8 }}>📢</span>
-          {consoleMsg}
-        </div>
-      )}
-
-      {/* Main Interface Layout */}
-      <main style={mainContentStyle}>
+      {/* Main Workspace Frame (Three-Column Monorepo Layout) */}
+      <div style={workspaceFrameStyle}>
         
-        {/* Top Summary Banner */}
-        <section style={statGridStyle}>
-          <div style={statCardStyle}>
-            <div style={statLabelStyle}>Escrow Active Charter</div>
-            <div style={charterValueStyle}>{charter || "No active charter configured."}</div>
+        {/* COLUMN 1: Docket Directory (Width: 22%) */}
+        <aside style={docketColumnStyle}>
+          <div style={columnHeaderStyle}>
+            <h2 style={columnTitleStyle}>Active Dockets</h2>
+            <button onClick={() => setShowLodgeModal(true)} style={btnLodgeDisputeStyle}>
+              + Lodge Claim
+            </button>
           </div>
-          <div style={statCardSideStyle}>
-            <div style={statLabelStyle}>Total Disputes Logged</div>
-            <div style={statNumberStyle}>{disputes.length}</div>
-          </div>
-        </section>
-
-        {/* Dashboard Chamber split */}
-        <div style={chamberLayoutStyle}>
           
-          {/* Left: Court Docket List */}
-          <div style={docketPanelStyle}>
-            <div style={panelHeaderStyle}>
-              <h2 style={panelTitleStyle}>Court Docket</h2>
-              <button onClick={() => setShowLodgeModal(true)} style={btnLodgeDisputeStyle}>
-                Lodge New Claim
-              </button>
-            </div>
-
-            <div style={docketListStyle}>
-              {disputes.length === 0 ? (
-                <div style={emptyDocketStateStyle}>
-                  No arbitration dockets found. Use "Lodge New Claim" to initiate a dispute.
-                </div>
-              ) : (
-                disputes.map((dispute) => {
-                  const badge = getStageBadge(dispute.stage);
-                  const isSelected = selected?.dispute_id === dispute.dispute_id;
-                  return (
-                    <div
-                      key={dispute.dispute_id}
-                      onClick={() => setSelected(dispute)}
-                      style={{
-                        ...docketItemStyle,
-                        borderColor: isSelected ? "#d4af37" : "#1a2136",
-                        background: isSelected ? "rgba(212, 175, 55, 0.05)" : "#0c1122"
-                      }}
-                    >
-                      <div style={docketHeaderStyle}>
-                        <span style={docketIdStyle}>Docket #{dispute.dispute_id}</span>
-                        <span style={{ ...stageBadgeStyle, backgroundColor: `${badge.color}15`, color: badge.color }}>
-                          {badge.label}
-                        </span>
-                      </div>
-                      <div style={docketTitleStyle}>{dispute.title}</div>
-                      <div style={docketPartiesStyle}>
-                        <span>{truncateAddress(dispute.claimant)}</span>
-                        <span style={{ color: "#d4af37", margin: "0 6px" }}>v.</span>
-                        <span>{truncateAddress(dispute.defendant)}</span>
-                      </div>
-                      <div style={docketEscrowStyle}>
-                        Locked Escrow: {formatStakeValue(dispute.escrow_pool)} GEN
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Right: Adjudication Chamber */}
-          <div style={adjudicationChamberStyle}>
-            {selected ? (
-              <div style={chamberConsoleStyle}>
-                {/* Chamber Header */}
-                <div style={chamberHeaderStyle}>
-                  <div>
-                    <h3 style={caseHeaderTitleStyle}>{selected.title}</h3>
-                    <div style={caseMetadataStyle}>
-                      <span>Docket Number: {selected.dispute_id}</span>
-                      <span style={{ color: "#1e293b" }}>|</span>
-                      <span>Created At: {new Date(selected.created_at * 1000).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-
-                  <div style={poolBannerStyle}>
-                    <div style={poolLabelStyle}>Total Escrow Held</div>
-                    <div style={poolValueStyle}>{formatStakeValue(selected.escrow_pool)} GEN</div>
-                  </div>
-                </div>
-
-                {/* Vertical Interactive Flow Stepper */}
-                <div style={flowStepperStyle}>
-                  {[
-                    { label: "Pleadings Lodged", completed: selected.stage >= 0 },
-                    { label: "Rebuttal Staked", completed: selected.stage >= 1 || selected.stage === 4 },
-                    { label: "Arbiter Adjudication", completed: selected.stage >= 2 && selected.stage !== 4 },
-                    { label: "Court Settlement", completed: selected.stage === 5 }
-                  ].map((step, idx) => (
-                    <div key={idx} style={stepContainerStyle}>
-                      <div style={{
-                        ...stepIndicatorStyle,
-                        backgroundColor: step.completed ? "#d4af37" : "#161c2e",
-                        boxShadow: step.completed ? "0 0 12px rgba(212, 175, 55, 0.4)" : "none"
-                      }}>
-                        {idx + 1}
-                      </div>
-                      <span style={{ ...stepLabelStyle, color: step.completed ? "#e2e8f0" : "#475569" }}>
-                        {step.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Case File Pleading Cards */}
-                <div style={evidenceGridStyle}>
-                  {/* Claimant Side */}
-                  <div style={evidenceCardStyle}>
-                    <div style={claimantHeaderStyle}>Claimant Brief & Pleading</div>
-                    <div style={cardBodyStyle}>
-                      <h4 style={cardLabelStyle}>SLA Violation Complaint</h4>
-                      <p style={cardParagraphStyle}>{selected.complaint}</p>
-                      <h4 style={cardLabelStyle}>Evidentiary Files/Links</h4>
-                      <p style={cardParagraphStyle}>{selected.evidence}</p>
-                      <div style={cardFooterBadgeStyle}>
-                        Deposited Stake: {formatStakeValue(selected.claimant_stake)} GEN
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Defendant Side */}
-                  <div style={evidenceCardStyle}>
-                    <div style={defendantHeaderStyle}>Defendant Rebuttal Brief</div>
-                    <div style={cardBodyStyle}>
-                      {selected.rebuttal ? (
-                        <>
-                          <h4 style={cardLabelStyle}>Defense Narrative</h4>
-                          <p style={cardParagraphStyle}>{selected.rebuttal}</p>
-                          <h4 style={cardLabelStyle}>Rebuttal Evidence Links</h4>
-                          <p style={cardParagraphStyle}>{selected.rebuttal_evidence}</p>
-                          <div style={cardFooterBadgeStyle}>
-                            Deposited Stake: {formatStakeValue(selected.defendant_stake)} GEN
-                          </div>
-                        </>
-                      ) : (
-                        <div style={awaitingDefenseBoxStyle}>
-                          <span style={{ fontSize: 24, marginBottom: 8 }}>⏳</span>
-                          <span style={{ fontWeight: 500 }}>Awaiting Defendant Response</span>
-                          {selected.deadline && (
-                            <span style={deadlineDateStyle}>
-                              Deadline: {new Date(selected.deadline * 1000).toLocaleString()}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Rulings and appeal details */}
-                {selected.initial_ruling && (
-                  <div style={verdictBoxStyle}>
-                    <h4 style={verdictHeaderStyle}>🏛️ Initial AI Consensus Ruling</h4>
-                    {(() => {
-                      const rulingObj = JSON.parse(selected.initial_ruling);
-                      const isClaimantWin = rulingObj.verdict === "claimant";
-                      return (
-                        <div style={verdictInnerStyle}>
-                          <div style={verdictRowStyle}>
-                            <span>
-                              <strong>Outcome:</strong>{" "}
-                              <span style={{ color: isClaimantWin ? "#10b981" : "#ef4444" }}>
-                                {isClaimantWin ? "CLAIMANT" : "DEFENDANT"} FAVORED
-                              </span>
-                            </span>
-                            <span>
-                              <strong>Breach Identified:</strong>{" "}
-                              {rulingObj.violation_found ? "⚠️ Yes" : "✅ No"}
-                            </span>
-                          </div>
-                          <p style={verdictReasonStyle}>"{rulingObj.reasoning}"</p>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-
-                {selected.appeal_ruling && (
-                  <div style={{ ...verdictBoxStyle, borderColor: "#ec4899" }}>
-                    <h4 style={{ ...verdictHeaderStyle, color: "#f472b6" }}>⚖️ Supreme Court Final Judgment</h4>
-                    {(() => {
-                      const rulingObj = JSON.parse(selected.appeal_ruling);
-                      const isClaimantWin = rulingObj.verdict === "claimant";
-                      return (
-                        <div style={verdictInnerStyle}>
-                          <div style={verdictRowStyle}>
-                            <span>
-                              <strong>Outcome:</strong>{" "}
-                              <span style={{ color: isClaimantWin ? "#10b981" : "#ef4444" }}>
-                                {isClaimantWin ? "CLAIMANT" : "DEFENDANT"} FAVORED (FINAL & BINDING)
-                              </span>
-                            </span>
-                          </div>
-                          <p style={verdictReasonStyle}>"{rulingObj.reasoning}"</p>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-
-                {/* Console / Action Console Bench */}
-                <div style={magistrateBenchStyle}>
-                  <h4 style={benchHeaderStyle}>Magistrate Actions</h4>
-
-                  <div style={benchActionsStyle}>
-                    {/* Defendant submit defense form */}
-                    {selected.stage === 0 && wallet.address?.toLowerCase() === selected.defendant.toLowerCase() && (
-                      <div style={actionFormCardStyle}>
-                        <h5 style={formCardTitleStyle}>File Formal Rebuttal Brief</h5>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                          <textarea
-                            placeholder="State your defense narrative..."
-                            value={rebuttalForm.narrative}
-                            onChange={(e) => setRebuttalForm({ ...rebuttalForm, narrative: e.target.value })}
-                            style={textareaStyle}
-                            rows={3}
-                          />
-                          <textarea
-                            placeholder="Provide link/references to counter-evidence..."
-                            value={rebuttalForm.evidence}
-                            onChange={(e) => setRebuttalForm({ ...rebuttalForm, evidence: e.target.value })}
-                            style={textareaStyle}
-                            rows={2}
-                          />
-                          <button
-                            onClick={() =>
-                              handleTransaction(
-                                "submit_rebuttal",
-                                [selected.dispute_id, rebuttalForm.narrative, rebuttalForm.evidence],
-                                BigInt(selected.claimant_stake)
-                              )
-                            }
-                            disabled={loading || !rebuttalForm.narrative}
-                            style={btnSubmitActionStyle}
-                          >
-                            Staker Deposit & Submit Rebuttal ({formatStakeValue(selected.claimant_stake)} GEN)
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Claimant claim default judgment */}
-                    {selected.stage === 0 && wallet.address?.toLowerCase() === selected.claimant.toLowerCase() && (
-                      <div style={actionFormCardStyle}>
-                        <h5 style={formCardTitleStyle}>Petition for Default Resolution</h5>
-                        <p style={formDescriptionStyle}>
-                          If the defendant fails to answer before the deadline, you can reclaim your staked deposit.
-                        </p>
-                        <button
-                          onClick={() => handleTransaction("claim_default_judgment", [selected.dispute_id])}
-                          disabled={loading}
-                          style={{ ...btnSubmitActionStyle, backgroundColor: "#ef4444" }}
-                        >
-                          Claim Default Resolution & Refund
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Trigger adjudication */}
-                    {selected.stage === 1 && (
-                      <div style={actionFormCardStyle}>
-                        <h5 style={formCardTitleStyle}>Initiate Case Adjudication</h5>
-                        <p style={formDescriptionStyle}>
-                          Both parties have submitted pleadings and stakes. Engage validator LLM consensus to arbitrate.
-                        </p>
-                        <button
-                          onClick={() => handleTransaction("resolve_dispute", [selected.dispute_id])}
-                          disabled={loading}
-                          style={{ ...btnSubmitActionStyle, backgroundColor: "#c5a028" }}
-                        >
-                          Run Initial Arbitration
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Appeal ruling */}
-                    {selected.stage === 2 && (
-                      <div style={actionFormCardStyle}>
-                        <h5 style={formCardTitleStyle}>Petition for Appellate Review</h5>
-                        <p style={formDescriptionStyle}>
-                          Challenge the initial verdict in Supreme Court. Requires matching the filing stake as an appeal bond.
-                        </p>
-                        <button
-                          onClick={() =>
-                            handleTransaction("escalate_appeal", [selected.dispute_id], BigInt(selected.claimant_stake))
-                          }
-                          disabled={loading}
-                          style={{ ...btnSubmitActionStyle, backgroundColor: "#8b5cf6" }}
-                        >
-                          File Supreme Appeal ({formatStakeValue(selected.claimant_stake)} GEN)
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Finalize ruling - disburse funds to claimant or defendant after window expiration */}
-                    {selected.stage === 2 && (
-                      <div style={actionFormCardStyle}>
-                        <h5 style={formCardTitleStyle}>Disburse Settled Funds</h5>
-                        <p style={formDescriptionStyle}>
-                          Once the 24-hour challenge window expires, finalize the docket to disburse funds to the prevailing party.
-                        </p>
-                        <button
-                          onClick={() => handleTransaction("finalize_disposal", [selected.dispute_id])}
-                          disabled={loading}
-                          style={{ ...btnSubmitActionStyle, backgroundColor: "#10b981" }}
-                        >
-                          Finalize Docket & Release Funds
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Resolve appeal */}
-                    {selected.stage === 3 && (
-                      <div style={actionFormCardStyle}>
-                        <h5 style={formCardTitleStyle}>Conclude Supreme Appellate Review</h5>
-                        <p style={formDescriptionStyle}>
-                          Both parties have submitted appeals. Invoke the supreme validator tribunal to render the final payout ruling.
-                        </p>
-                        <button
-                          onClick={() => handleTransaction("resolve_appeal", [selected.dispute_id])}
-                          disabled={loading}
-                          style={{ ...btnSubmitActionStyle, backgroundColor: "#db2777" }}
-                        >
-                          Conclude Supreme Appeal
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
+          <div style={columnBodyStyle}>
+            {disputes.length === 0 ? (
+              <div style={emptyDocketStateStyle}>
+                No disputes on record. Use the button above to lodge your claim.
               </div>
             ) : (
-              <div style={emptyChamberStateStyle}>
-                <span style={{ fontSize: 64, color: "#d4af37", marginBottom: 16 }}>⚖️</span>
-                <h3 style={emptyTitleStyle}>GenGavel Courtroom</h3>
-                <p style={emptySubtitleStyle}>
-                  Select an active dispute case docket from the list, or file a new service contract dispute.
-                </p>
-              </div>
+              disputes.map((dispute) => {
+                const badge = getStageBadge(dispute.stage);
+                const isSelected = selected?.dispute_id === dispute.dispute_id;
+                return (
+                  <div
+                    key={dispute.dispute_id}
+                    onClick={() => setSelected(dispute)}
+                    style={{
+                      ...docketItemStyle,
+                      borderColor: isSelected ? "#d4af37" : "#192135",
+                      background: isSelected ? "#0f162a" : "#080c18"
+                    }}
+                  >
+                    <div style={docketItemTopStyle}>
+                      <span style={docketIdStyle}>Docket #{dispute.dispute_id}</span>
+                      <span style={{ ...stageBadgeStyle, backgroundColor: `${badge.color}15`, color: badge.color }}>
+                        {badge.label}
+                      </span>
+                    </div>
+                    <div style={docketTitleStyle}>{dispute.title}</div>
+                    <div style={docketStakeStyle}>
+                      {formatStakeValue(dispute.escrow_pool)} GEN
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
-        </div>
-      </main>
+        </aside>
+
+        {/* COLUMN 2: Pleading Chambers & Evidence dossiers (Width: 50%) */}
+        <section style={pleadingColumnStyle}>
+          {selected ? (
+            <div style={columnBodyStyle}>
+              <div style={chamberTitleBlockStyle}>
+                <span style={charterNoticeStyle}>⚖️ Case Resolution dossier</span>
+                <h2 style={caseMainTitleStyle}>{selected.title}</h2>
+                <div style={casePartiesBadgeStyle}>
+                  <div style={partyItemStyle}>
+                    <strong>Claimant:</strong> <span>{selected.claimant}</span>
+                  </div>
+                  <div style={partyItemStyle}>
+                    <strong>Respondent:</strong> <span>{selected.defendant}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Vertical stacked dossier sections */}
+              <div style={dossierSectionStyle}>
+                <div style={claimantLabelHeaderStyle}>I. Claimant Pleadings & Complaints</div>
+                <div style={dossierContentStyle}>
+                  <h4 style={dossierLabelStyle}>Specific SLA Rules Breached</h4>
+                  <p style={dossierParagraphStyle}>{selected.complaint}</p>
+                  <h4 style={dossierLabelStyle}>Claimant Evidence & Link Logs</h4>
+                  <p style={dossierParagraphStyle}>{selected.evidence}</p>
+                  <div style={dossierStakeBadgeStyle}>
+                    Locked Pleading Stake: {formatStakeValue(selected.claimant_stake)} GEN
+                  </div>
+                </div>
+              </div>
+
+              <div style={dossierSectionStyle}>
+                <div style={defendantLabelHeaderStyle}>II. Respondent Defense & Rebuttals</div>
+                <div style={dossierContentStyle}>
+                  {selected.rebuttal ? (
+                    <>
+                      <h4 style={dossierLabelStyle}>Formal Refutation Narrative</h4>
+                      <p style={dossierParagraphStyle}>{selected.rebuttal}</p>
+                      <h4 style={dossierLabelStyle}>Respondent Evidence & Link Logs</h4>
+                      <p style={dossierParagraphStyle}>{selected.rebuttal_evidence}</p>
+                      <div style={dossierStakeBadgeStyle}>
+                        Locked Rebuttal Stake: {formatStakeValue(selected.defendant_stake)} GEN
+                      </div>
+                    </>
+                  ) : (
+                    <div style={awaitingDefensePlaceholderStyle}>
+                      <span style={{ fontSize: 24, marginBottom: 8 }}>⌛</span>
+                      <span>Formal defense rebuttals not yet entered on docket.</span>
+                      <span style={deadlineInfoStyle}>
+                        Deadline: {new Date(selected.deadline * 1000).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={emptyChamberStateStyle}>
+              <span style={emptyScalesIconStyle}>⚖️</span>
+              <h2 style={emptyChamberTitleStyle}>Magistrate Chambers</h2>
+              <p style={emptyChamberSubtitleStyle}>
+                Select an active docket from the directory to review complaints, examine staked evidence, and execute court judgments.
+              </p>
+              {charter && (
+                <div style={charterBoxStyle}>
+                  <div style={charterBoxTitleStyle}>📜 Active Court Guidelines Charter</div>
+                  <p style={charterBoxTextStyle}>{charter}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* COLUMN 3: The Adjudication Console & Verdict Console (Width: 28%) */}
+        <aside style={verdictColumnStyle}>
+          {selected ? (
+            <div style={columnBodyStyle}>
+              <div style={columnHeaderStyle}>
+                <h3 style={consoleTitleStyle}>Court Panel Bench</h3>
+              </div>
+
+              {/* Status Stepper */}
+              <div style={verticalStepperStyle}>
+                {[
+                  { label: "Pleadings Lodged", active: selected.stage >= 0 },
+                  { label: "Rebuttal Staked", active: selected.stage >= 1 || selected.stage === 4 },
+                  { label: "Arbiter Consensus Adjudicated", active: selected.stage >= 2 && selected.stage !== 4 },
+                  { label: "Docket Concluded", active: selected.stage === 5 }
+                ].map((step, idx) => (
+                  <div key={idx} style={verticalStepItemStyle}>
+                    <div style={{
+                      ...stepDotStyle,
+                      backgroundColor: step.active ? "#d4af37" : "#1a2136",
+                      color: step.active ? "#060913" : "#475569"
+                    }}>
+                      {step.active ? "✓" : idx + 1}
+                    </div>
+                    <span style={{ ...stepLabelStyle, color: step.active ? "#f8fafc" : "#475569" }}>
+                      {step.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Rulings display */}
+              {selected.initial_ruling && (
+                <div style={rulingBriefStyle}>
+                  <div style={rulingTitleStyle}>🏛️ Initial Arbiter Consensus Verdict</div>
+                  {(() => {
+                    const r = JSON.parse(selected.initial_ruling);
+                    const isPlaintiff = r.verdict === "claimant";
+                    return (
+                      <div style={rulingInnerStyle}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                          <span style={{ fontWeight: 700, color: isPlaintiff ? "#10b981" : "#ef4444" }}>
+                            {isPlaintiff ? "CLAIMANT WINS" : "DEFENDANT WINS"}
+                          </span>
+                          <span>Breach: {r.violation_found ? "⚠️ Yes" : "✅ No"}</span>
+                        </div>
+                        <p style={rulingTextParagraphStyle}>"{r.reasoning}"</p>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {selected.appeal_ruling && (
+                <div style={{ ...rulingBriefStyle, borderColor: "#ec4899" }}>
+                  <div style={{ ...rulingTitleStyle, color: "#f472b6" }}>⚖️ Supreme Appeal Court Ruling</div>
+                  {(() => {
+                    const r = JSON.parse(selected.appeal_ruling);
+                    const isPlaintiff = r.verdict === "claimant";
+                    return (
+                      <div style={rulingInnerStyle}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                          <span style={{ fontWeight: 700, color: isPlaintiff ? "#10b981" : "#ef4444" }}>
+                            {isPlaintiff ? "CLAIMANT WINS" : "DEFENDANT WINS"}
+                          </span>
+                        </div>
+                        <p style={rulingTextParagraphStyle}>"{r.reasoning}"</p>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Action operations console */}
+              <div style={consoleConsoleStyle}>
+                <h4 style={consoleSectionLabelStyle}>Bench Controls</h4>
+                
+                {/* Rebuttal submission */}
+                {selected.stage === 0 && wallet.address?.toLowerCase() === selected.defendant.toLowerCase() && (
+                  <div style={benchActionCardStyle}>
+                    <h5 style={actionTitleStyle}>Submit Rebuttal Brief</h5>
+                    <textarea
+                      placeholder="Explain your defense argument..."
+                      value={rebuttalForm.narrative}
+                      onChange={(e) => setRebuttalForm({ ...rebuttalForm, narrative: e.target.value })}
+                      style={textareaInputStyle}
+                      rows={3}
+                    />
+                    <textarea
+                      placeholder="Links to refutation evidence..."
+                      value={rebuttalForm.evidence}
+                      onChange={(e) => setRebuttalForm({ ...rebuttalForm, evidence: e.target.value })}
+                      style={textareaInputStyle}
+                      rows={2}
+                    />
+                    <button
+                      onClick={() =>
+                        handleTransaction(
+                          "submit_rebuttal",
+                          [selected.dispute_id, rebuttalForm.narrative, rebuttalForm.evidence],
+                          BigInt(selected.claimant_stake)
+                        )
+                      }
+                      disabled={loading || !rebuttalForm.narrative}
+                      style={{ ...btnConsoleActionStyle, background: "#3b82f6" }}
+                    >
+                      Post Stake & Submit Rebuttal ({formatStakeValue(selected.claimant_stake)} GEN)
+                    </button>
+                  </div>
+                )}
+
+                {/* Default judgment */}
+                {selected.stage === 0 && wallet.address?.toLowerCase() === selected.claimant.toLowerCase() && (
+                  <div style={benchActionCardStyle}>
+                    <h5 style={actionTitleStyle}>File Default Judgment Petition</h5>
+                    <p style={actionDescStyle}>Defendant missed the rebuttal deadline. Reclaim your locked pleadings stake.</p>
+                    <button
+                      onClick={() => handleTransaction("claim_default_judgment", [selected.dispute_id])}
+                      disabled={loading}
+                      style={{ ...btnConsoleActionStyle, background: "#ef4444" }}
+                    >
+                      Claim Default & Dissolve Escrow
+                    </button>
+                  </div>
+                )}
+
+                {/* Initial resolution */}
+                {selected.stage === 1 && (
+                  <div style={benchActionCardStyle}>
+                    <h5 style={actionTitleStyle}>Trigger AI Case Arbitration</h5>
+                    <p style={actionDescStyle}>Engage the decentralized LLM consensus engine to adjudicate the pleadings evidence.</p>
+                    <button
+                      onClick={() => handleTransaction("resolve_dispute", [selected.dispute_id])}
+                      disabled={loading}
+                      style={{ ...btnConsoleActionStyle, background: "#d4af37", color: "#060913" }}
+                    >
+                      Convene Court Adjudication
+                    </button>
+                  </div>
+                )}
+
+                {/* Appeal decision */}
+                {selected.stage === 2 && (
+                  <div style={benchActionCardStyle}>
+                    <h5 style={actionTitleStyle}>File Supreme Appeal Escalation</h5>
+                    <p style={actionDescStyle}>Disagree with initial verdict? Deposit a matching appeal bond to escalate.</p>
+                    <button
+                      onClick={() =>
+                        handleTransaction("escalate_appeal", [selected.dispute_id], BigInt(selected.claimant_stake))
+                      }
+                      disabled={loading}
+                      style={{ ...btnConsoleActionStyle, background: "#ec4899" }}
+                    >
+                      File Supreme Appeal ({formatStakeValue(selected.claimant_stake)} GEN)
+                    </button>
+                  </div>
+                )}
+
+                {/* Release funds */}
+                {selected.stage === 2 && (
+                  <div style={benchActionCardStyle}>
+                    <h5 style={actionTitleStyle}>Disburse Settled Escrow</h5>
+                    <p style={actionDescStyle}>Appeal deadline expired without challenge. Release the escrow pool to winner.</p>
+                    <button
+                      onClick={() => handleTransaction("finalize_disposal", [selected.dispute_id])}
+                      disabled={loading}
+                      style={{ ...btnConsoleActionStyle, background: "#10b981" }}
+                    >
+                      Conclude Docket & Disburse
+                    </button>
+                  </div>
+                )}
+
+                {/* Resolve appeal */}
+                {selected.stage === 3 && (
+                  <div style={benchActionCardStyle}>
+                    <h5 style={actionTitleStyle}>Trigger Supreme Court Review</h5>
+                    <p style={actionDescStyle}>Invoke the appellate validator tribunal to render the final binding payout ruling.</p>
+                    <button
+                      onClick={() => handleTransaction("resolve_appeal", [selected.dispute_id])}
+                      disabled={loading}
+                      style={{ ...btnConsoleActionStyle, background: "#db2777" }}
+                    >
+                      Conclude Supreme Appeal
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div style={emptyBenchConsoleStyle}>
+              <span>⚖️ Bench Status Offline</span>
+            </div>
+          )}
+        </aside>
+
+      </div>
 
       {/* Lodge Dispute Modal */}
       {showLodgeModal && (
@@ -569,7 +531,7 @@ export default function Home() {
             <div style={formFieldStyle}>
               <label style={modalLabelStyle}>Dispute Case Title</label>
               <input
-                placeholder="e.g. Milestone 2 Deliverable Defect"
+                placeholder="e.g. Failure to deliver code milestones"
                 value={lodgeForm.title}
                 onChange={(e) => setLodgeForm({ ...lodgeForm, title: e.target.value })}
                 required
@@ -591,7 +553,7 @@ export default function Home() {
             <div style={formFieldStyle}>
               <label style={modalLabelStyle}>Complaints & Breach Details</label>
               <textarea
-                placeholder="List specific charter rules violated and details..."
+                placeholder="Specify rules violated under the court guidelines charter..."
                 value={lodgeForm.complaint}
                 onChange={(e) => setLodgeForm({ ...lodgeForm, complaint: e.target.value })}
                 required
@@ -601,9 +563,9 @@ export default function Home() {
             </div>
 
             <div style={formFieldStyle}>
-              <label style={modalLabelStyle}>Evidence Link/Dossier</label>
+              <label style={modalLabelStyle}>Evidence dossier Logs/Links</label>
               <textarea
-                placeholder="Links to git commits, deliverables, or documents..."
+                placeholder="Provide link references to code commits, contracts or communications..."
                 value={lodgeForm.evidence}
                 onChange={(e) => setLodgeForm({ ...lodgeForm, evidence: e.target.value })}
                 required
@@ -614,7 +576,7 @@ export default function Home() {
 
             <div style={modalSplitFieldsStyle}>
               <div style={{ flex: 1 }}>
-                <label style={modalLabelStyle}>Staked Escrow (GEN)</label>
+                <label style={modalLabelStyle}>Filing Escrow Deposit (GEN)</label>
                 <input
                   type="number"
                   min="1"
@@ -640,7 +602,7 @@ export default function Home() {
             </div>
 
             <button type="submit" disabled={loading} style={btnSubmitModalStyle}>
-              Lodge Case & Stake Escrow
+              File Case & Stake Escrow
             </button>
           </form>
         </div>
@@ -649,61 +611,79 @@ export default function Home() {
   );
 }
 
-// Styling system: Classic Elegant Legal Scale UI Theme
+// Styling system: Full Desktop Three-Column Magistrate Theme
 const containerStyle: React.CSSProperties = {
-  minHeight: "100vh",
+  height: "100vh",
   background: "#060913",
   color: "#f8fafc",
   fontFamily: "'Plus Jakarta Sans', sans-serif",
-  paddingBottom: 60
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden"
 };
 
 const headerStyle: React.CSSProperties = {
-  background: "rgba(10, 15, 30, 0.8)",
-  borderBottom: "1px solid #1a2136",
-  padding: "20px 48px",
+  height: "76px",
+  background: "#080c18",
+  borderBottom: "1px solid #141c30",
+  padding: "0 32px",
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  position: "sticky",
-  top: 0,
-  zIndex: 99,
-  backdropFilter: "blur(12px)"
+  flexShrink: 0
 };
 
 const logoContainerStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 16
+  gap: 12
 };
 
 const logoScaleStyle: React.CSSProperties = {
-  fontSize: 32,
+  fontSize: 28,
   color: "#d4af37",
-  filter: "drop-shadow(0 0 8px rgba(212, 175, 55, 0.3))"
+  filter: "drop-shadow(0 0 6px rgba(212, 175, 55, 0.2))"
 };
 
 const logoTitleStyle: React.CSSProperties = {
   fontFamily: "'Playfair Display', serif",
-  fontSize: 28,
+  fontSize: 22,
   fontWeight: 700,
   margin: 0,
-  color: "#e2e8f0",
-  letterSpacing: "0.5px"
+  color: "#e2e8f0"
 };
 
 const logoSubtitleStyle: React.CSSProperties = {
-  fontSize: 12,
+  fontSize: 10,
   color: "#d4af37",
-  margin: "4px 0 0 0",
-  letterSpacing: "1px",
+  margin: 0,
+  letterSpacing: "0.5px",
   textTransform: "uppercase"
+};
+
+const consoleBadgeStyle: React.CSSProperties = {
+  background: "#0f162a",
+  border: "1px solid #1e293b",
+  padding: "6px 14px",
+  borderRadius: "4px",
+  fontSize: 12,
+  color: "#3b82f6",
+  display: "flex",
+  alignItems: "center",
+  gap: 8
+};
+
+const blinkIndicatorStyle: React.CSSProperties = {
+  width: 6,
+  height: 6,
+  borderRadius: "50%",
+  backgroundColor: "#3b82f6",
+  boxShadow: "0 0 6px #3b82f6"
 };
 
 const headerActionsStyle: React.CSSProperties = {
   display: "flex",
-  alignItems: "center",
-  gap: 16
+  alignItems: "center"
 };
 
 const connectionWrapperStyle: React.CSSProperties = {
@@ -713,147 +693,83 @@ const connectionWrapperStyle: React.CSSProperties = {
 };
 
 const walletInfoBadgeStyle: React.CSSProperties = {
-  background: "#0c1122",
-  border: "1px solid #1a2136",
-  padding: "8px 16px",
-  borderRadius: "6px",
+  background: "#0a0f1e",
+  border: "1px solid #141c30",
+  padding: "8px 14px",
+  borderRadius: "4px",
   display: "flex",
   alignItems: "center",
   gap: 8
 };
 
 const onlineIndicatorStyle: React.CSSProperties = {
-  width: 8,
-  height: 8,
+  width: 6,
+  height: 6,
   backgroundColor: "#10b981",
   borderRadius: "50%",
-  boxShadow: "0 0 8px #10b981"
+  boxShadow: "0 0 6px #10b981"
 };
 
 const addressTextStyle: React.CSSProperties = {
-  fontSize: 13,
+  fontSize: 12,
   fontWeight: 500,
-  color: "#cbd5e1",
+  color: "#94a3b8",
   fontFamily: "monospace"
 };
 
 const btnConnectStyle: React.CSSProperties = {
-  background: "linear-gradient(135deg, #d4af37 0%, #c5a028 100%)",
-  color: "#060913",
-  border: "none",
-  borderRadius: "6px",
-  padding: "10px 22px",
-  fontWeight: 700,
+  background: "transparent",
+  color: "#d4af37",
+  border: "1px solid #d4af37",
+  borderRadius: "4px",
+  padding: "8px 18px",
+  fontWeight: 600,
   cursor: "pointer",
-  fontSize: 14,
-  boxShadow: "0 4px 12px rgba(212, 175, 55, 0.2)",
-  transition: "all 0.2s"
+  fontSize: 13,
+  textTransform: "uppercase",
+  letterSpacing: "0.5px"
 };
 
 const btnDisconnectStyle: React.CSSProperties = {
   background: "transparent",
   color: "#ef4444",
   border: "1px solid #ef4444",
-  borderRadius: "6px",
-  padding: "8px 14px",
+  borderRadius: "4px",
+  padding: "6px 12px",
   fontWeight: 600,
   cursor: "pointer",
-  fontSize: 13,
-  transition: "all 0.2s"
+  fontSize: 12
 };
 
-const consoleBannerStyle: React.CSSProperties = {
-  background: "#0a152e",
-  borderBottom: "1px solid #1c325e",
-  padding: "12px 48px",
-  color: "#60a5fa",
-  fontSize: 14,
+const workspaceFrameStyle: React.CSSProperties = {
+  flexGrow: 1,
   display: "flex",
-  alignItems: "center"
+  overflow: "hidden"
 };
 
-const mainContentStyle: React.CSSProperties = {
-  maxWidth: 1400,
-  margin: "32px auto 0",
-  padding: "0 24px"
-};
-
-const statGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "3fr 1fr",
-  gap: 24,
-  marginBottom: 32
-};
-
-const statCardStyle: React.CSSProperties = {
-  background: "#0c1122",
-  border: "1px solid #1a2136",
-  borderRadius: "10px",
-  padding: "20px 24px",
-  display: "flex",
-  flexDirection: "column",
-  gap: 8
-};
-
-const statCardSideStyle: React.CSSProperties = {
-  background: "#0c1122",
-  border: "1px solid #1a2136",
-  borderRadius: "10px",
-  padding: "20px 24px",
-  display: "flex",
-  flexDirection: "column",
-  justifyContent: "center",
-  alignItems: "center"
-};
-
-const statLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: "#d4af37",
-  textTransform: "uppercase",
-  letterSpacing: "1.5px",
-  fontWeight: 600
-};
-
-const charterValueStyle: React.CSSProperties = {
-  fontSize: 15,
-  lineHeight: 1.6,
-  color: "#94a3b8",
-  fontStyle: "italic"
-};
-
-const statNumberStyle: React.CSSProperties = {
-  fontSize: 32,
-  fontWeight: 700,
-  color: "#e2e8f0",
-  marginTop: 4
-};
-
-const chamberLayoutStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 28,
-  alignItems: "flex-start"
-};
-
-const docketPanelStyle: React.CSSProperties = {
-  width: 400,
+/* COLUMN 1: Dockets */
+const docketColumnStyle: React.CSSProperties = {
+  width: "300px",
   flexShrink: 0,
-  background: "#0c1122",
-  border: "1px solid #1a2136",
-  borderRadius: "12px",
-  padding: "24px",
-  boxSizing: "border-box"
+  background: "#080c18",
+  borderRight: "1px solid #141c30",
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden"
 };
 
-const panelHeaderStyle: React.CSSProperties = {
+const columnHeaderStyle: React.CSSProperties = {
+  padding: "20px",
+  borderBottom: "1px solid #141c30",
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  marginBottom: 20
+  flexShrink: 0
 };
 
-const panelTitleStyle: React.CSSProperties = {
+const columnTitleStyle: React.CSSProperties = {
   fontFamily: "'Playfair Display', serif",
-  fontSize: 20,
+  fontSize: 16,
   fontWeight: 700,
   margin: 0,
   color: "#e2e8f0"
@@ -862,89 +778,189 @@ const panelTitleStyle: React.CSSProperties = {
 const btnLodgeDisputeStyle: React.CSSProperties = {
   backgroundColor: "transparent",
   color: "#d4af37",
-  border: "1px solid #d4af37",
-  borderRadius: "6px",
-  padding: "8px 14px",
-  fontSize: 12,
-  fontWeight: 700,
-  cursor: "pointer",
-  transition: "all 0.2s"
+  border: "1px solid rgba(212, 175, 55, 0.4)",
+  borderRadius: "4px",
+  padding: "6px 10px",
+  fontSize: 11,
+  fontWeight: 600,
+  cursor: "pointer"
 };
 
-const docketListStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 14
+const columnBodyStyle: React.CSSProperties = {
+  flexGrow: 1,
+  overflowY: "auto",
+  padding: "20px"
 };
 
 const emptyDocketStateStyle: React.CSSProperties = {
   textAlign: "center",
-  padding: "48px 12px",
+  padding: "40px 12px",
   color: "#475569",
-  fontSize: 13,
-  lineHeight: 1.5,
-  fontStyle: "italic"
+  fontSize: 12,
+  fontStyle: "italic",
+  lineHeight: 1.5
 };
 
 const docketItemStyle: React.CSSProperties = {
   borderWidth: 1,
   borderStyle: "solid",
-  borderRadius: "8px",
-  padding: "18px",
+  borderRadius: "4px",
+  padding: "14px",
   cursor: "pointer",
-  transition: "all 0.15s ease-in-out"
+  marginBottom: 12,
+  transition: "all 0.15s"
 };
 
-const docketHeaderStyle: React.CSSProperties = {
+const docketItemTopStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  marginBottom: 10
-};
-
-const docketIdStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: "#64748b",
-  letterSpacing: "0.5px"
-};
-
-const stageBadgeStyle: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 700,
-  padding: "3px 8px",
-  borderRadius: "4px",
-  textTransform: "uppercase",
-  letterSpacing: "0.5px"
-};
-
-const docketTitleStyle: React.CSSProperties = {
-  fontSize: 15,
-  fontWeight: 600,
-  color: "#f1f5f9",
   marginBottom: 8
 };
 
-const docketPartiesStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#94a3b8",
-  marginBottom: 12,
-  fontFamily: "monospace"
+const docketIdStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 600,
+  color: "#475569"
 };
 
-const docketEscrowStyle: React.CSSProperties = {
-  fontSize: 12,
+const stageBadgeStyle: React.CSSProperties = {
+  fontSize: 9,
+  fontWeight: 700,
+  padding: "2px 6px",
+  borderRadius: "2px",
+  textTransform: "uppercase"
+};
+
+const docketTitleStyle: React.CSSProperties = {
+  fontSize: 13,
   fontWeight: 600,
+  color: "#f1f5f9",
+  marginBottom: 6
+};
+
+const docketStakeStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
   color: "#d4af37"
 };
 
-const adjudicationChamberStyle: React.CSSProperties = {
+/* COLUMN 2: Pleading Dossiers */
+const pleadingColumnStyle: React.CSSProperties = {
   flexGrow: 1,
+  background: "#060913",
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden"
+};
+
+const chamberTitleBlockStyle: React.CSSProperties = {
+  borderBottom: "1px solid #141c30",
+  paddingBottom: 24,
+  marginBottom: 24
+};
+
+const charterNoticeStyle: React.CSSProperties = {
+  fontSize: 10,
+  color: "#d4af37",
+  textTransform: "uppercase",
+  letterSpacing: "1px",
+  fontWeight: 600
+};
+
+const caseMainTitleStyle: React.CSSProperties = {
+  fontFamily: "'Playfair Display', serif",
+  fontSize: 24,
+  fontWeight: 700,
+  margin: "8px 0 16px 0",
+  color: "#f1f5f9"
+};
+
+const casePartiesBadgeStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 6
+};
+
+const partyItemStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: "#64748b",
+  fontFamily: "monospace"
+};
+
+const dossierSectionStyle: React.CSSProperties = {
+  background: "#080c18",
+  border: "1px solid #141c30",
+  borderRadius: "4px",
+  marginBottom: 24,
+  overflow: "hidden"
+};
+
+const claimantLabelHeaderStyle: React.CSSProperties = {
+  background: "rgba(212, 175, 55, 0.05)",
+  borderBottom: "1px solid #141c30",
+  color: "#d4af37",
+  padding: "10px 16px",
+  fontSize: 12,
+  fontWeight: 700,
+  textTransform: "uppercase"
+};
+
+const defendantLabelHeaderStyle: React.CSSProperties = {
+  background: "rgba(59, 130, 246, 0.05)",
+  borderBottom: "1px solid #141c30",
+  color: "#3b82f6",
+  padding: "10px 16px",
+  fontSize: 12,
+  fontWeight: 700,
+  textTransform: "uppercase"
+};
+
+const dossierContentStyle: React.CSSProperties = {
+  padding: 18
+};
+
+const dossierLabelStyle: React.CSSProperties = {
+  fontSize: 10,
+  color: "#64748b",
+  textTransform: "uppercase",
+  margin: "0 0 6px 0",
+  fontWeight: 600
+};
+
+const dossierParagraphStyle: React.CSSProperties = {
+  fontSize: 13,
+  lineHeight: 1.6,
+  color: "#cbd5e1",
+  margin: "0 0 16px 0"
+};
+
+const dossierStakeBadgeStyle: React.CSSProperties = {
+  display: "inline-block",
+  fontSize: 11,
+  color: "#94a3b8",
   background: "#0c1122",
-  border: "1px solid #1a2136",
-  borderRadius: "12px",
-  minHeight: 600,
-  display: "flex"
+  padding: "4px 8px",
+  borderRadius: "2px",
+  fontFamily: "monospace"
+};
+
+const awaitingDefensePlaceholderStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  height: 120,
+  color: "#475569",
+  fontSize: 12,
+  fontStyle: "italic"
+};
+
+const deadlineInfoStyle: React.CSSProperties = {
+  fontSize: 10,
+  color: "#475569",
+  marginTop: 4,
+  fontFamily: "monospace"
 };
 
 const emptyChamberStateStyle: React.CSSProperties = {
@@ -953,304 +969,206 @@ const emptyChamberStateStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   flexGrow: 1,
-  padding: "80px 40px",
+  padding: "60px 40px",
   textAlign: "center"
 };
 
-const emptyTitleStyle: React.CSSProperties = {
-  fontFamily: "'Playfair Display', serif",
-  fontSize: 24,
-  fontWeight: 700,
-  margin: "0 0 12px 0"
-};
-
-const emptySubtitleStyle: React.CSSProperties = {
-  color: "#64748b",
-  fontSize: 14,
-  maxWidth: 400,
-  lineHeight: 1.6
-};
-
-const chamberConsoleStyle: React.CSSProperties = {
-  padding: 36,
-  display: "flex",
-  flexDirection: "column",
-  width: "100%",
-  boxSizing: "border-box"
-};
-
-const chamberHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  borderBottom: "1px solid #1a2136",
-  paddingBottom: 28
-};
-
-const caseHeaderTitleStyle: React.CSSProperties = {
-  fontFamily: "'Playfair Display', serif",
-  fontSize: 26,
-  fontWeight: 700,
-  margin: 0,
-  color: "#f1f5f9"
-};
-
-const caseMetadataStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 12,
-  fontSize: 12,
-  color: "#475569",
-  marginTop: 8
-};
-
-const poolBannerStyle: React.CSSProperties = {
-  background: "rgba(212, 175, 55, 0.05)",
-  border: "1px solid rgba(212, 175, 55, 0.2)",
-  borderRadius: "8px",
-  padding: "12px 20px",
-  textAlign: "right"
-};
-
-const poolLabelStyle: React.CSSProperties = {
-  fontSize: 10,
+const emptyScalesIconStyle: React.CSSProperties = {
+  fontSize: 48,
   color: "#d4af37",
-  textTransform: "uppercase",
-  letterSpacing: "1px",
-  fontWeight: 600
+  marginBottom: 16
 };
 
-const poolValueStyle: React.CSSProperties = {
+const emptyChamberTitleStyle: React.CSSProperties = {
+  fontFamily: "'Playfair Display', serif",
   fontSize: 20,
   fontWeight: 700,
-  color: "#d4af37",
-  marginTop: 4
+  margin: "0 0 8px 0"
 };
 
-const flowStepperStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  margin: "32px 0",
-  padding: "16px 24px",
+const emptyChamberSubtitleStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: "#475569",
+  maxWidth: 420,
+  lineHeight: 1.6,
+  marginBottom: 28
+};
+
+const charterBoxStyle: React.CSSProperties = {
   background: "#080c18",
-  borderRadius: "8px",
-  border: "1px solid #121828"
+  border: "1px solid #141c30",
+  borderRadius: "4px",
+  padding: "16px 20px",
+  maxWidth: 600,
+  textAlign: "left"
 };
 
-const stepContainerStyle: React.CSSProperties = {
+const charterBoxTitleStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: "#d4af37",
+  fontWeight: 600,
+  textTransform: "uppercase",
+  marginBottom: 8
+};
+
+const charterBoxTextStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 12,
+  color: "#94a3b8",
+  lineHeight: 1.5
+};
+
+/* COLUMN 3: Verdict & Bench */
+const verdictColumnStyle: React.CSSProperties = {
+  width: "350px",
+  flexShrink: 0,
+  background: "#080c18",
+  borderLeft: "1px solid #141c30",
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden"
+};
+
+const emptyBenchConsoleStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  height: "100%",
+  color: "#475569",
+  fontSize: 12,
+  fontStyle: "italic"
+};
+
+const consoleTitleStyle: React.CSSProperties = {
+  fontFamily: "'Playfair Display', serif",
+  fontSize: 16,
+  margin: 0,
+  color: "#e2e8f0"
+};
+
+const verticalStepperStyle: React.CSSProperties = {
+  background: "#060913",
+  border: "1px solid #141c30",
+  padding: "14px",
+  borderRadius: "4px",
+  marginBottom: 20,
+  display: "flex",
+  flexDirection: "column",
+  gap: 12
+};
+
+const verticalStepItemStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 10
 };
 
-const stepIndicatorStyle: React.CSSProperties = {
-  width: 24,
-  height: 24,
+const stepDotStyle: React.CSSProperties = {
+  width: 18,
+  height: 18,
   borderRadius: "50%",
   display: "grid",
   placeItems: "center",
-  fontSize: 11,
-  fontWeight: 700,
-  color: "#060913"
+  fontSize: 10,
+  fontWeight: 700
 };
 
 const stepLabelStyle: React.CSSProperties = {
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 600
 };
 
-const evidenceGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: 24,
-  marginBottom: 32
+const rulingBriefStyle: React.CSSProperties = {
+  border: "1px solid rgba(212, 175, 55, 0.3)",
+  borderRadius: "4px",
+  padding: 14,
+  marginBottom: 20
 };
 
-const evidenceCardStyle: React.CSSProperties = {
-  background: "#080c18",
-  border: "1px solid #121828",
-  borderRadius: "8px",
-  overflow: "hidden"
-};
-
-const claimantHeaderStyle: React.CSSProperties = {
-  background: "rgba(212, 175, 55, 0.06)",
-  borderBottom: "1px solid #1c243a",
-  color: "#d4af37",
-  padding: "12px 18px",
-  fontSize: 13,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.5px"
-};
-
-const defendantHeaderStyle: React.CSSProperties = {
-  background: "rgba(59, 130, 246, 0.06)",
-  borderBottom: "1px solid #1c243a",
-  color: "#3b82f6",
-  padding: "12px 18px",
-  fontSize: 13,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.5px"
-};
-
-const cardBodyStyle: React.CSSProperties = {
-  padding: 20
-};
-
-const cardLabelStyle: React.CSSProperties = {
+const rulingTitleStyle: React.CSSProperties = {
   fontSize: 11,
   color: "#d4af37",
+  fontWeight: 700,
   textTransform: "uppercase",
-  letterSpacing: "0.5px",
-  margin: "0 0 6px 0"
+  marginBottom: 8
 };
 
-const cardParagraphStyle: React.CSSProperties = {
-  fontSize: 14,
-  lineHeight: 1.6,
-  color: "#cbd5e1",
-  margin: "0 0 20px 0"
+const rulingInnerStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: "#cbd5e1"
 };
 
-const cardFooterBadgeStyle: React.CSSProperties = {
-  display: "inline-block",
+const rulingTextParagraphStyle: React.CSSProperties = {
+  margin: 0,
+  lineHeight: 1.5,
+  fontStyle: "italic",
+  color: "#94a3b8"
+};
+
+const consoleConsoleStyle: React.CSSProperties = {
+  borderTop: "1px solid #141c30",
+  paddingTop: 16
+};
+
+const consoleSectionLabelStyle: React.CSSProperties = {
   fontSize: 11,
   color: "#64748b",
+  textTransform: "uppercase",
+  margin: "0 0 12px 0"
+};
+
+const benchActionCardStyle: React.CSSProperties = {
   background: "#0c1122",
   border: "1px solid #1a2136",
-  padding: "4px 10px",
+  padding: 16,
   borderRadius: "4px"
 };
 
-const awaitingDefenseBoxStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  height: 160,
-  color: "#475569",
-  fontStyle: "italic",
-  fontSize: 14
+const actionTitleStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: "#d4af37",
+  textTransform: "uppercase",
+  margin: "0 0 6px 0"
 };
 
-const deadlineDateStyle: React.CSSProperties = {
+const actionDescStyle: React.CSSProperties = {
   fontSize: 11,
   color: "#64748b",
-  marginTop: 6,
-  fontFamily: "monospace"
+  margin: "0 0 12px 0",
+  lineHeight: 1.4
 };
 
-const verdictBoxStyle: React.CSSProperties = {
-  background: "rgba(10, 15, 30, 0.5)",
-  border: "1px solid rgba(212, 175, 55, 0.3)",
-  borderRadius: "8px",
-  padding: "24px",
-  marginBottom: 32
-};
-
-const verdictHeaderStyle: React.CSSProperties = {
-  fontSize: 15,
-  color: "#d4af37",
-  margin: "0 0 16px 0",
-  textTransform: "uppercase",
-  letterSpacing: "0.5px"
-};
-
-const verdictInnerStyle: React.CSSProperties = {
-  background: "#060913",
-  border: "1px solid #121828",
-  borderRadius: "6px",
-  padding: 18
-};
-
-const verdictRowStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  fontSize: 14,
-  color: "#e2e8f0",
-  marginBottom: 12
-};
-
-const verdictReasonStyle: React.CSSProperties = {
-  fontSize: 14,
-  lineHeight: 1.6,
-  color: "#94a3b8",
-  margin: 0,
-  fontStyle: "italic"
-};
-
-const magistrateBenchStyle: React.CSSProperties = {
-  borderTop: "1px solid #1a2136",
-  paddingTop: 28
-};
-
-const benchHeaderStyle: React.CSSProperties = {
-  fontFamily: "'Playfair Display', serif",
-  fontSize: 18,
-  color: "#e2e8f0",
-  margin: "0 0 16px 0"
-};
-
-const benchActionsStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 16
-};
-
-const actionFormCardStyle: React.CSSProperties = {
-  background: "#080c18",
-  border: "1px solid #121828",
-  borderRadius: "8px",
-  padding: 24
-};
-
-const formCardTitleStyle: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 700,
-  margin: "0 0 10px 0",
-  color: "#d4af37",
-  textTransform: "uppercase",
-  letterSpacing: "0.5px"
-};
-
-const formDescriptionStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: "#64748b",
-  margin: "0 0 16px 0"
-};
-
-const textareaStyle: React.CSSProperties = {
+const textareaInputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "12px",
+  padding: "8px",
   background: "#060913",
-  border: "1px solid #1c243a",
-  borderRadius: "6px",
+  border: "1px solid #1a2136",
+  borderRadius: "4px",
   color: "#ffffff",
-  fontSize: 14,
-  boxSizing: "border-box",
+  fontSize: 13,
+  marginBottom: 10,
   fontFamily: "inherit"
 };
 
-const btnSubmitActionStyle: React.CSSProperties = {
+const btnConsoleActionStyle: React.CSSProperties = {
   width: "100%",
-  padding: "12px",
+  padding: "10px",
   border: "none",
-  borderRadius: "6px",
+  borderRadius: "4px",
   color: "#ffffff",
   fontWeight: 700,
-  fontSize: 13,
+  fontSize: 11,
   cursor: "pointer",
   textTransform: "uppercase",
-  letterSpacing: "0.5px",
-  boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+  letterSpacing: "0.5px"
 };
 
 // Modal Design
 const modalOverlayStyle: React.CSSProperties = {
   position: "fixed",
   inset: 0,
-  background: "rgba(6, 9, 19, 0.8)",
+  background: "rgba(6, 9, 19, 0.85)",
   backdropFilter: "blur(8px)",
   display: "grid",
   placeItems: "center",
@@ -1261,9 +1179,9 @@ const modalOverlayStyle: React.CSSProperties = {
 const modalContentStyle: React.CSSProperties = {
   background: "#0c1122",
   border: "1px solid #d4af37",
-  borderRadius: "12px",
-  padding: "36px",
-  maxWidth: 600,
+  borderRadius: "4px",
+  padding: "30px",
+  maxWidth: 560,
   width: "100%",
   maxHeight: "90vh",
   overflowY: "auto"
@@ -1271,19 +1189,19 @@ const modalContentStyle: React.CSSProperties = {
 
 const modalTitleStyle: React.CSSProperties = {
   fontFamily: "'Playfair Display', serif",
-  fontSize: 22,
+  fontSize: 20,
   fontWeight: 700,
-  margin: "0 0 24px 0",
+  margin: "0 0 20px 0",
   color: "#d4af37"
 };
 
 const formFieldStyle: React.CSSProperties = {
-  marginBottom: 16
+  marginBottom: 14
 };
 
 const modalLabelStyle: React.CSSProperties = {
   display: "block",
-  fontSize: 11,
+  fontSize: 10,
   fontWeight: 600,
   color: "#64748b",
   marginBottom: 6,
@@ -1293,44 +1211,43 @@ const modalLabelStyle: React.CSSProperties = {
 
 const modalInputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "10px 14px",
+  padding: "8px 12px",
   background: "#060913",
   border: "1px solid #1a2136",
-  borderRadius: "6px",
+  borderRadius: "4px",
   color: "#ffffff",
-  fontSize: 14,
+  fontSize: 13,
   boxSizing: "border-box"
 };
 
 const modalTextareaStyle: React.CSSProperties = {
   width: "100%",
-  padding: "10px 14px",
+  padding: "8px 12px",
   background: "#060913",
   border: "1px solid #1a2136",
-  borderRadius: "6px",
+  borderRadius: "4px",
   color: "#ffffff",
-  fontSize: 14,
+  fontSize: 13,
   boxSizing: "border-box",
   fontFamily: "inherit"
 };
 
 const modalSplitFieldsStyle: React.CSSProperties = {
   display: "flex",
-  gap: 16,
-  marginBottom: 24
+  gap: 14,
+  marginBottom: 20
 };
 
 const btnSubmitModalStyle: React.CSSProperties = {
   width: "100%",
-  padding: "14px",
+  padding: "12px",
   background: "linear-gradient(135deg, #d4af37 0%, #c5a028 100%)",
   color: "#060913",
   border: "none",
-  borderRadius: "6px",
+  borderRadius: "4px",
   fontWeight: 700,
-  fontSize: 14,
+  fontSize: 13,
   cursor: "pointer",
-  boxShadow: "0 4px 16px rgba(212, 175, 55, 0.15)",
   textTransform: "uppercase",
   letterSpacing: "0.5px"
 };
