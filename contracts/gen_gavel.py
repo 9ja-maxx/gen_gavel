@@ -241,6 +241,90 @@ Return JSON object:
         dispute["escrow_pool"] = str(u256(int(dispute.get("escrow_pool", 0))) + stake)
         self.disputes[dispute_id] = json.dumps(dispute)
 
+    @gl.public.write
+    def resolve_appeal(self, dispute_id: str) -> None:
+        """
+        Runs appellate arbitration using validator consensus to review and resolve the dispute.
+        """
+        dispute = json.loads(self.disputes[dispute_id])
+        if dispute.get("stage") != 3:
+            raise gl.vm.UserError("This dispute is not awaiting appellate adjudication.")
+
+        charter = self.charter
+        initial_ruling = json.loads(dispute.get("initial_ruling", "{}"))
+
+        def leader_fn():
+            prompt = f"""You are a Supreme Court Appeal Judge.
+You must review the initial dispute ruling and determine if it was correct or should be overturned.
+
+DAO Agreement Guidelines / Charter:
+{charter}
+
+DISPUTE CASE SPECIFICATION:
+Title: {dispute.get('title')}
+
+CLAIMANT ({dispute.get('claimant')}):
+Complaint: {dispute.get('complaint')}
+Evidence: {dispute.get('evidence')}
+
+DEFENDANT ({dispute.get('defendant')}):
+Rebuttal: {dispute.get('rebuttal')}
+Evidence: {dispute.get('rebuttal_evidence')}
+
+INITIAL ADJUDICATION RULING:
+Verdict: {initial_ruling.get('verdict')}
+Violation Found: {initial_ruling.get('violation_found')}
+Reasoning: {initial_ruling.get('reasoning')}
+
+Evaluate:
+1. Did the initial judge commit errors in evaluating rules or evidence?
+2. Should the initial verdict be upheld or overturned?
+3. What is the absolute final verdict?
+
+Return JSON object:
+{{
+    "verdict": "claimant" or "defendant",
+    "violation_found": true or false,
+    "reasoning": "A comprehensive appeal evaluation and final ruling explanation."
+}}"""
+            response = gl.nondet.exec_prompt(prompt)
+            return _extract_json(response)
+
+        def validator_fn(leader_result) -> bool:
+            if not isinstance(leader_result, gl.vm.Return):
+                return False
+            validator_data = leader_fn()
+            leader_data = leader_result.calldata
+            
+            if not isinstance(leader_data, dict) or not isinstance(validator_data, dict):
+                return False
+
+            leader_verdict = str(leader_data.get("verdict", "")).strip().lower()
+            validator_verdict = str(validator_data.get("verdict", "")).strip().lower()
+            leader_violation = bool(leader_data.get("violation_found", False))
+            validator_violation = bool(validator_data.get("violation_found", False))
+
+            if leader_verdict not in ["claimant", "defendant"] or validator_verdict not in ["claimant", "defendant"]:
+                return False
+
+            return (leader_verdict == validator_verdict and leader_violation == validator_violation)
+
+        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+
+        verdict = str(result.get("verdict", "")).strip().lower()
+        
+        dispute["stage"] = 5  # 5 = Finalized / Settled
+        dispute["appeal_ruling"] = json.dumps(result)
+        
+        escrow_pool_wei = u256(int(dispute.get("escrow_pool", 0)))
+        dispute["escrow_pool"] = "0"
+        self.disputes[dispute_id] = json.dumps(dispute)
+
+        if verdict == "claimant":
+            self._pay(dispute.get("claimant"), escrow_pool_wei)
+        else:
+            self._pay(dispute.get("defendant"), escrow_pool_wei)
+
     def _pay(self, recipient: str, amount: u256) -> None:
         """
         Transfers native tokens (GEN) to a recipient address.
